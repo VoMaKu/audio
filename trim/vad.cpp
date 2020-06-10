@@ -122,12 +122,12 @@ struct WavHeader {
 
 
 int get_duration_samples(const WavHeader &header) {
-  //cout << "GET_DURATION_SAMPLES" << header.subchunk2Size << endl << header.blockAlign << endl;
+  //std::cout << "GET_DURATION_SAMPLES" << header.subchunk2Size << std::endl << header.blockAlign << std::endl;
   return header.subchunk2Size / header.blockAlign;
 }
 
 double get_duration_seconds(const WavHeader &header) {
-  //cout << "GET_DURATION_SECONDS" << get_duration_samples(header) << endl << header.sampleRate << endl;
+  //std::cout << "GET_DURATION_SECONDS" << get_duration_samples(header) << std::endl << header.sampleRate << std::endl;
   return get_duration_samples(header) / double(header.sampleRate);
 }
 
@@ -244,76 +244,45 @@ void print_segments(const std::vector<Segment> &segments,
   std::cout << "Total duration: " << total_duration << ' ' << units_name << std::endl;
 }
 
-/*struct WavHeader {
-  char chunkId[4] = {'R', 'I', 'F', 'F'}; // 'RIFF'
-  unsigned int chunkSize; // file size - 8
-  char format[4] = {'W', 'A', 'V', 'E'}; // 'WAVE'
-  char subchunk1Id[4] = {'f', 'm', 't', ' '}; // 'fmt '
-  unsigned int subchunk1Size = 16; // 16 for 'pcm' format
-  unsigned short audioFormat = 1; // 1 for 'pcm' format
-  unsigned short numChannels = 1; // 1 for 'mono' format
-  unsigned int sampleRate;
-  unsigned int byteRate;
-  unsigned short blockAlign; //byte per sample (included all channels)
-  unsigned short bitsPerSample;
-  char subchunk2Id[4] = {'d', 'a', 't', 'a'}; // 'data'
-  unsigned int subchunk2Size; // byte (file size - 44)
-};*/
-
-WavHeader getHeader(int i, std::vector<short> data, const std::vector<Segment> segments, WavHeader header_entire, int segment_duration) {
-  WavHeader header;
-  strncpy(header.chunkId, "RIFF", 4);
-  header.chunkSize = ((segments[i].stop - segments[i].start) * 2 * segment_duration + 44) - 8;
-  strncpy(header.format, "WAVE", 4);
-  strncpy(header.subchunk1Id, "fmt ", 4);
-  header.subchunk1Size = 16;
-  header.audioFormat = 1;
-  header.numChannels = 1;
-  header.sampleRate = header_entire.sampleRate;
-  header.byteRate = header_entire.byteRate;
-  header.blockAlign = header_entire.blockAlign;
-  header.bitsPerSample = header_entire.bitsPerSample;
-  strncpy(header.subchunk2Id, "data", 4);
-  header.subchunk2Size = 2 * (segments[i].stop - segments[i].start) * segment_duration;
-  cout << "HEADER " << endl << header.chunkSize << endl << header.subchunk2Size << endl;
+WavHeader newHeader(int i, std::vector<short> data, const std::vector<Segment> segments, WavHeader header, int segment_duration) {
+  WavHeader header_clone;
+  strncpy(header_clone.chunkId, "RIFF", 4);
+  header_clone.chunkSize = ((segments[i].stop - segments[i].start) * 2 * segment_duration + 44) - 8;
+  strncpy(header_clone.format, "WAVE", 4);
+  strncpy(header_clone.subchunk1Id, "fmt ", 4);
+  header_clone.subchunk1Size = 16;
+  header_clone.audioFormat = 1;
+  header_clone.numChannels = 1;
+  header_clone.sampleRate = header.sampleRate;
+  header_clone.byteRate = header.byteRate;
+  header_clone.blockAlign = header.blockAlign;
+  header_clone.bitsPerSample = header.bitsPerSample;
+  strncpy(header_clone.subchunk2Id, "data", 4);
+  header_clone.subchunk2Size = 2 * (segments[i].stop - segments[i].start) * segment_duration;
   return header;
 }
 
-std::vector<short> getData(int idx, const std::vector<short> &data, const std::vector<Segment> &segments, int sd) {
-  cout << segments[idx].start * sd << endl;
-  cout << segments[idx].stop * sd << endl;
-  cout << data.size() << endl;
-  std::vector<short> audio_segment((segments[idx].stop - segments[idx].start) * sd);
-  for(int i = segments[idx].start * sd, j = 0; i < segments[idx].stop * sd ; i++, j++) {
+std::vector<short> newData(int i, const std::vector<short> &data, const std::vector<Segment> &segment, int segm_duration) {
+  std::cout << segment[i].start * segm_duration << std::endl;
+  std::cout << segment[i].stop * segm_duration << std::endl;
+  std::cout << data.size() << std::endl;
+  std::vector<short> audio_segment((segment[i].stop - segment[i].start) * segm_duration);
+  for(int i = segment[i].start * segm_duration, j = 0; i < segment[i].stop * segm_duration ; i++, j++) {
     audio_segment[j] = data[i];
   }
   return audio_segment;
 }
 
-
-
 int save_wav(int i, const std::vector<short> &data, const std::vector<Segment> &segments, WavHeader header, int segm_duration) {
-  ofstream myfile;
-  myfile.open((to_string(i) + ".wav"), ios::binary);
-  WavHeader segment_header = getHeader(i, data, segments, header, segm_duration);
-  cout << "Check on SIG_FAULT" << endl;
-  std::vector<short> segment_data = getData(i, data, segments, segm_duration);
+  std::ofstream myfile;
+  myfile.open((std::__cxx11::to_string(i) + ".wav"), std::ios_base::binary);
+  WavHeader segment_header = newHeader(i, data, segments, header, segm_duration);
+  std::vector<short> segment_data = newData(i, data, segments, segm_duration);
   myfile.write((char *)&segment_header, sizeof(segment_header));
   myfile.write((char *)(segment_data.data()), segment_data.size() * 2);
   myfile.close();
   return 0;
 }
-
-
-/*soxi file.wav 
-input_stream.write(header)
-for ( ... )
-input_stream.write(data[i]) 
-std::ios::binary 
-head 0.wav -b 10 
-close() */
-
-
 
 std::vector<Segment> mask_compress(const std::vector<bool> &data) {
   std::vector<Segment> segments;
@@ -359,8 +328,8 @@ int main(int argc, char** argv) {
   std::vector<bool> vad_mask = get_vad_mask(segments_energy, vad_threshold);
   std::vector<Segment> segments = mask_compress(vad_mask);
   for(int i = 0; i <= segments.size() - 1; i++) {
-    cout << segments[i].start << endl;
-    cout << segments[i].stop << endl;
+    std::cout << segments[i].start << std::endl;
+    std::cout << segments[i].stop << std::endl;
     save_wav(i, audio, segments, header, segment_duration_samples);
   }
   print_with_timeline(vad_mask, segment_duration, "sec", 10);
