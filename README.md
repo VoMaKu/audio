@@ -76,4 +76,4 @@ header and the audio. Anything else is rejected with a message rather than misre
 The repository ships no `.wav` to run this on. `audio_webm/` holds the clip the program was
 tested against in 2020, but it is Opus in a WebM container and has to be converted first:
 
-    ffmpeg -i audio_webm/*.webm -ac 1 -ar 16000 -acodec pcm_s16le speech.wav
+    ffmpeg -i audio_webm/speech_sample.webm -ac 1 -ar 16000 -acodec pcm_s16le speech.wav
