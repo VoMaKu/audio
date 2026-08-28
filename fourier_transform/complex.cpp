@@ -12,14 +12,13 @@ double Complex::amp() const {
 }
 
 double Complex::phase() const {
-	if (_re == 0)
+	if (_re == 0) {
 		if (_im == 0)
 			return 0;
-		else
-			if (_im > 0)
-				return M_PI/2;
-			else
-				return -M_PI/2;
+		if (_im > 0)
+			return M_PI/2;
+		return -M_PI/2;
+	}
 	if (_re > 0)
 		return atan(_im/_re);
 	else
@@ -77,9 +76,9 @@ Complex& Complex::operator += (const Complex &object) {
 
 std::ostream& operator << (std::ostream& out, const Complex& object) {
 	if (object._im < 0)
-		std::cout << std::fixed << std::setprecision(3) << object._re << ' ' << object._im << "i\n";
+		out << std::fixed << std::setprecision(3) << object._re << ' ' << object._im << "i\n";
 	else
-		std::cout << std::fixed << std::setprecision(3) << object._re << " +" << object._im << "i\n";
+		out << std::fixed << std::setprecision(3) << object._re << " +" << object._im << "i\n";
 	return out;
 }
 

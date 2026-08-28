@@ -34,7 +34,7 @@ int main() {
 	std::cout << "***************************\n";
 	i = 0;
 	for (auto &num: vec_check) {
-		std::cout << "IFFT[" << i++ << "] = " << num / 8;
+		std::cout << "IFFT[" << i++ << "] = " << num / vec_check.size();
 	}
 	return 0;
 }
