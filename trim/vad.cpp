@@ -5,7 +5,7 @@
 #include <cstring>
 #include <algorithm>
 #include <cmath>
-#include <fstream>
+#include <cstdlib>
 
 enum COLORS {
   GRAY,
@@ -153,8 +153,17 @@ std::vector<short> load_wav(const std::string &wav_file_path, int *sample_rate, 
   // read header
   WavHeader header;
   input_stream.read((char *)&header, sizeof(header));
-  if (strncmp(header.format, "WAVE", 4) != 0) {
+  if (!input_stream || strncmp(header.chunkId, "RIFF", 4) != 0
+      || strncmp(header.format, "WAVE", 4) != 0) {
     print(wav_file_path + ": file is not wav.");
+    exit(2);
+  }
+  if (header.audioFormat != 1 || header.bitsPerSample != 16 || header.numChannels != 1) {
+    print(wav_file_path + ": only 16-bit mono pcm is supported.");
+    exit(2);
+  }
+  if (header.blockAlign == 0) {
+    print(wav_file_path + ": broken header, blockAlign is zero.");
     exit(2);
   }
   print(wav_file_path);
@@ -183,7 +192,7 @@ std::vector<short> load_wav(const std::string &wav_file_path, int *sample_rate, 
 double get_segment_energy(const std::vector<short> &data, int start, int end) {
   double energy = 0;
   for (int i = start; i < end; i++) {
-    energy += data[i] * data[i] / (end - start);
+    energy += double(data[i]) * data[i] / (end - start);
   }
   energy = sqrt(energy) / 32768;
   return energy;
@@ -203,7 +212,6 @@ std::vector<bool> get_vad_mask(const std::vector<double> &data, double threshold
   std::vector<bool> vad_mask(data.size());
   for (int i = 0; i < (int)data.size(); i++) {
     vad_mask[i] = data[i] > threshold;
-     std::cout << data[i] << '>' << threshold << '=' << vad_mask[i] << std::endl;
   }
   return vad_mask;
 }
@@ -220,6 +228,10 @@ struct Segment {
 void print_segments(const std::vector<Segment> &segments,
                     double single_duration,
                     std::string units_name) {
+  if (segments.size() == 0) {
+    std::cout << "No segments found." << std::endl;
+    return;
+  }
   std::cout << std::fixed << std::setprecision(3);
   double total_duration = 0.0;
   double min_duration = 1.0;
@@ -244,10 +256,10 @@ void print_segments(const std::vector<Segment> &segments,
   std::cout << "Total duration: " << total_duration << ' ' << units_name << std::endl;
 }
 
-WavHeader newHeader(int i, std::vector<short> data, const std::vector<Segment> segments, WavHeader header, int segment_duration) {
+WavHeader newHeader(int samples_number, const WavHeader &header) {
   WavHeader header_clone;
   strncpy(header_clone.chunkId, "RIFF", 4);
-  header_clone.chunkSize = ((segments[i].stop - segments[i].start) * 2 * segment_duration + 44) - 8;
+  header_clone.chunkSize = samples_number * 2 + 44 - 8;
   strncpy(header_clone.format, "WAVE", 4);
   strncpy(header_clone.subchunk1Id, "fmt ", 4);
   header_clone.subchunk1Size = 16;
@@ -258,26 +270,25 @@ WavHeader newHeader(int i, std::vector<short> data, const std::vector<Segment> s
   header_clone.blockAlign = header.blockAlign;
   header_clone.bitsPerSample = header.bitsPerSample;
   strncpy(header_clone.subchunk2Id, "data", 4);
-  header_clone.subchunk2Size = 2 * (segments[i].stop - segments[i].start) * segment_duration;
-  return header;
+  header_clone.subchunk2Size = samples_number * 2;
+  return header_clone;
 }
 
 std::vector<short> newData(int i, const std::vector<short> &data, const std::vector<Segment> &segment, int segm_duration) {
-  std::cout << segment[i].start * segm_duration << std::endl;
-  std::cout << segment[i].stop * segm_duration << std::endl;
-  std::cout << data.size() << std::endl;
-  std::vector<short> audio_segment((segment[i].stop - segment[i].start) * segm_duration);
-  for(int i = segment[i].start * segm_duration, j = 0; i < segment[i].stop * segm_duration ; i++, j++) {
-    audio_segment[j] = data[i];
+  int start = segment[i].start * segm_duration;
+  int stop = std::min(segment[i].stop * segm_duration, (int)data.size());
+  std::vector<short> audio_segment(stop - start);
+  for (int k = start, j = 0; k < stop; k++, j++) {
+    audio_segment[j] = data[k];
   }
   return audio_segment;
 }
 
 int save_wav(int i, const std::vector<short> &data, const std::vector<Segment> &segments, WavHeader header, int segm_duration) {
   std::ofstream myfile;
-  myfile.open((std::__cxx11::to_string(i) + ".wav"), std::ios_base::binary);
-  WavHeader segment_header = newHeader(i, data, segments, header, segm_duration);
+  myfile.open((std::to_string(i) + ".wav"), std::ios_base::binary);
   std::vector<short> segment_data = newData(i, data, segments, segm_duration);
+  WavHeader segment_header = newHeader(segment_data.size(), header);
   myfile.write((char *)&segment_header, sizeof(segment_header));
   myfile.write((char *)(segment_data.data()), segment_data.size() * 2);
   myfile.close();
@@ -318,6 +329,10 @@ int main(int argc, char** argv) {
   std::string wav_file_path(argv[1]);
   double segment_duration = atof(argv[2]);
   double vad_threshold = atof(argv[3]);
+  if (segment_duration <= 0) {
+    print("Segment duration must be positive.");
+    return 1;
+  }
 
   int sample_rate = 0;
   WavHeader header;
@@ -327,9 +342,7 @@ int main(int argc, char** argv) {
   std::vector<double> segments_energy = get_segments_energy(audio, segment_duration_samples);
   std::vector<bool> vad_mask = get_vad_mask(segments_energy, vad_threshold);
   std::vector<Segment> segments = mask_compress(vad_mask);
-  for(int i = 0; i <= segments.size() - 1; i++) {
-    std::cout << segments[i].start << std::endl;
-    std::cout << segments[i].stop << std::endl;
+  for (int i = 0; i < (int)segments.size(); i++) {
     save_wav(i, audio, segments, header, segment_duration_samples);
   }
   print_with_timeline(vad_mask, segment_duration, "sec", 10);
