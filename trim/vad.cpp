@@ -259,10 +259,10 @@ void print_segments(const std::vector<Segment> &segments,
 
 WavHeader newHeader(int samples_number, const WavHeader &header) {
   WavHeader header_clone;
-  strncpy(header_clone.chunkId, "RIFF", 4);
+  memcpy(header_clone.chunkId, "RIFF", 4);
   header_clone.chunkSize = samples_number * 2 + 44 - 8;
-  strncpy(header_clone.format, "WAVE", 4);
-  strncpy(header_clone.subchunk1Id, "fmt ", 4);
+  memcpy(header_clone.format, "WAVE", 4);
+  memcpy(header_clone.subchunk1Id, "fmt ", 4);
   header_clone.subchunk1Size = 16;
   header_clone.audioFormat = 1;
   header_clone.numChannels = 1;
@@ -270,7 +270,7 @@ WavHeader newHeader(int samples_number, const WavHeader &header) {
   header_clone.byteRate = header.byteRate;
   header_clone.blockAlign = header.blockAlign;
   header_clone.bitsPerSample = header.bitsPerSample;
-  strncpy(header_clone.subchunk2Id, "data", 4);
+  memcpy(header_clone.subchunk2Id, "data", 4);
   header_clone.subchunk2Size = samples_number * 2;
   return header_clone;
 }
